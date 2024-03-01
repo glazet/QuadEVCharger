@@ -24,7 +24,7 @@ void setup() {
   SPI.begin(SCK_PIN, MISO_PIN, MOSI_PIN, SS_PIN);  // Begin SPI communication
   mfrc522.PCD_Init();             // Initialize the MFRC522 module
 
-  Serial.println("Ready to read NFC cards!");  //Used for Testing
+  //Serial.println("Ready to read NFC cards!");  //Used for Testing
 }
 
 void loop() {
@@ -34,9 +34,9 @@ void loop() {
 void readNFC() {
   // Look for new cards
   if (mfrc522.PICC_IsNewCardPresent() && mfrc522.PICC_ReadCardSerial()) {
-    Serial.print("Card UID: "); //Used for Testing
+    //Serial.print("Card UID: "); //Used for Testing
     tagID = getTagID(mfrc522.uid.uidByte, mfrc522.uid.size);  // Get the tag ID and store it in the tagID variable
-    Serial.println(tagID);  //Used for Testing, Print ID Card
+    //Serial.println(tagID);  //Used for Testing, Print ID Card
     delay(1000);
   }
 }
