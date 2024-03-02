@@ -9,9 +9,9 @@
 #include <MFRC522.h>           // Include the MFRC522 library for interacting with the RFID module
 
 #define SS_PIN 10               // SDA
-#define RST_PIN 45              // RST
-#define SCK_PIN 36              // SCK
-#define MOSI_PIN 38             // MOSI
+#define RST_PIN 14              // RST
+#define SCK_PIN 367             // SCK
+#define MOSI_PIN 39             // MOSI
 #define MISO_PIN 13             // MISO
 
 MFRC522 mfrc522(SS_PIN, RST_PIN); // Create an instance of the MFRC522 class with specified SS and RST pins
@@ -27,25 +27,26 @@ void setup() {
   //Serial.println("Ready to read NFC cards!");  //Used for Testing
 }
 
-void loop() {
-  readNFC();  //Calling function readNFC
-}
-
 void readNFC() {
-  // Look for new cards
-  if (mfrc522.PICC_IsNewCardPresent() && mfrc522.PICC_ReadCardSerial()) {
-    //Serial.print("Card UID: "); //Used for Testing
-    tagID = getTagID(mfrc522.uid.uidByte, mfrc522.uid.size);  // Get the tag ID and store it in the tagID variable
-    //Serial.println(tagID);  //Used for Testing, Print ID Card
+  unsigned long startTime = millis();  // Record the start time
+  bool cardRead = false;  // Flag to indicate if a card has been read
+
+  while (millis() - startTime < 10000) {  // Continue checking for cards for up to 10 seconds
+    // Look for new cards
+    if (mfrc522.PICC_IsNewCardPresent() && mfrc522.PICC_ReadCardSerial()) {
+      //Serial.print("Card UID: "); //Used for Testing
+      tagID = getTagID(mfrc522.uid.uidByte, mfrc522.uid.size);  // Get the tag ID and store it in the tagID variable
+      //Serial.println(tagID);  //Used for Testing, Print ID Card
+      cardRead = true;
+      break;  // Exit the loop if card is read
+    }
+  }
+
+  // When card id read wait 1 second
+  if (cardRead) {
     delay(1000);
   }
-}
-
-String getTagID(byte *buffer, byte bufferSize) {
-  String tag = "";  // Declare a String variable to store the formatted tag ID
-  for (byte i = 0; i < bufferSize; i++) {
-    // Format each byte as a two-digit hexadecimal value and append it to the tag variable
-    tag += (buffer[i] < 0x10 ? "0" : "") + String(buffer[i], HEX);
-  }
-  return tag;
+  
+  // If card is read return true if card is not read return false
+  return cardRead;
 }
