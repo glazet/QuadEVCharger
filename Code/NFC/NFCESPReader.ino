@@ -19,7 +19,7 @@ String tagID = "";    //Stores TagID
 
 // Declare getTagID function before it's used
 String getTagID(byte *buffer, byte bufferSize); // Define function getTag id used to format string
-void readNFC();   //Define function readNFC used to read the nfc then calls function getTagID once tag is read
+bool readNFC();   //Define function readNFC used to read the nfc then calls function getTagID once tag is read
 
 void setup() {
   Serial.begin(115200);
