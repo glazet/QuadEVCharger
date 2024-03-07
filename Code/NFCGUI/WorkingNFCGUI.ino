@@ -84,6 +84,7 @@ void onLED(String LEDcolor);                                  // Turns on LED in
 void offLED();                                                // Turns all LEDs off
 bool startUP();                                               // On power up begin this function
 bool iswifiUP();                                              // Check if WiFi is Up
+void getTime();                                               // Prints the time on the top left of the LCD
 
 /////////////////////////////////////////////////////////////////////////////////////
 // Void Setup
@@ -112,6 +113,7 @@ void setup() {
   FillScreenBlank();
 
   // Begin Initial start up
+
   startUpBool = startUP();
   while (startUpBool == false) {                            // If starup fails keep calling function
     startUP();
@@ -126,7 +128,10 @@ void setup() {
 /////////////////////////////////////////////////////////////////////////////////////
 
 void loop() {
+  unsigned long ChTime = millis() + 30000;
+  while (millis() < ChTime) {
   iswifiUP();
+  
 
   checkButtonPress();
 
@@ -134,12 +139,13 @@ void loop() {
 
     TapCardScreen();
     
-    delay(2000);
+    delay(500);
     welcomescreen();
   }
 
   
-  
+  }
+  getTime();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////
@@ -197,6 +203,7 @@ void FillScreenBlank() {
   // Description: Function draws a rectangle to clear the LCD    
 
   tft.fillRect(0, 0, tft.width(), tft.height(), ILI9341_BLACK);             // Draw rectangle to clear screen
+  
 
 }
 
@@ -226,6 +233,11 @@ void welcomescreen() {
   drawButton("Plug 2", 97, 185);
   drawButton("Plug 3", 173, 185);
   drawButton("Plug 4", 250, 185);
+
+  // Get Time
+
+  getTime();
+  
 }
 
 /////////////////////////////////////////////////////////////////////////////////////
@@ -280,6 +292,9 @@ void TapCardScreen() {
   tft.setCursor(75,75);
   tft.setTextSize(2);
   tft.print("Please Tap Card");
+
+  // Print the Time
+  getTime();
 
   // Draw an exit button to go back to the welcome page
   drawButton("EXIT", 250, 160);
@@ -446,6 +461,7 @@ bool startUP() {
   unsigned long timeout = millis() + 10000;
   
   // Check if wifi is connected
+  bool CWifi = false;
   while (millis() < timeout) {
     if (WiFi.status() == WL_CONNECTED) {
       FillScreenBlank();
@@ -455,30 +471,43 @@ bool startUP() {
       onLED("G");
       delay(2000);
       offLED();
-      return true;
+      CWifi = true;
       // Break loop once wifi is connected
       break;
     }
   }
 
   // WiFi connection failed within the timeout
-  FillScreenBlank();
-  tft.setTextSize(2);
-  tft.setTextColor(ILI9341_RED);
-  tft.setCursor(30, 75);
-  tft.print("WiFi Failed to Connect");
-  onLED("R");
-  delay(2000);
+  if (WiFi.status() != WL_CONNECTED) {
+    FillScreenBlank();
+    tft.setTextSize(2);
+    tft.setTextColor(ILI9341_RED);
+    tft.setCursor(30, 75);
+    tft.print("WiFi Failed to Connect");
+    onLED("R");
+    delay(2000);
 
-  // Reset timeout and wait before retrying
-  timeout = millis() + 10000;
-  while (millis() < timeout) {
+    // Reset timeout and wait before retrying
+    timeout = millis() + 10000;
+    while (millis() < timeout) {
     
   }
 
+    FillScreenBlank();
+    offLED();
+    return false;
+  }
+
   FillScreenBlank();
-  offLED();
-  return false;
+  tft.setTextSize(2);
+  tft.setTextColor(ILI9341_WHITE);
+  tft.setCursor(70, 75);
+  tft.print("Getting Time");
+  timeClient.begin();
+  timeClient.setTimeOffset(-8*3600);
+  getTime();
+  return true;
+
   
 }
 
@@ -503,3 +532,22 @@ bool iswifiUP () {
   }
 
 }
+
+void getTime() {
+  timeClient.update();
+  String currentTime = timeClient.getFormattedTime();
+  int index = currentTime.indexOf(":");
+  String hoursMinutes = currentTime.substring(0, index + 3);
+  tft.setTextColor(ILI9341_WHITE);
+  tft.setTextSize(2);
+  tft.setCursor(0, 0);
+  
+  tft.fillRect(0, 0, 150, 40, ILI9341_BLACK);
+  tft.print(hoursMinutes);
+  
+  
+  
+
+}
+
+
