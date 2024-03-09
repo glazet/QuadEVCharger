@@ -353,19 +353,19 @@ int checkButtonPress() {
   // Description: Read each button pin and check if button is pressed return the
   //              button number. If no button is pressed return 0
 
-/*
+
   int Sbutton1 = digitalRead(button1);
   delay(50);
   int Sbutton2 = digitalRead(button2);
   delay(50);
   int Sbutton3 = digitalRead(button3);
   delay(50);
-  */
+  
   int Sbutton4 = digitalRead(button4);
   delay(50);
 
 
-/*
+
   if (Sbutton1 == LOW) {
       Serial.println("Button 1 Pressed");
       buttonNum = 1;
@@ -380,7 +380,7 @@ int checkButtonPress() {
       Serial.println("Button 3 Pressed");
       buttonNum = 3;
   }
-  */
+  
 
   if (Sbutton4 == LOW) {
       Serial.println("Button 4 Pressed");
