@@ -44,18 +44,35 @@ NTPClient timeClient(ntpUDP, "pool.ntp.org");
 /////////////////////////////////////////////////////////////////////////////////////
 
         
-bool startUpBool = false;                                     // Is start up complete     
+bool startUpBool = false;                                      // Is start up complete     
+ 
+int cardRead = false;                                          // Is NFC card read or does user want to exit    
 
-int cardRead = false;                                         // Is NFC card read or does user want to exit    
-
-int buttonNum = 0;                                            // Used in function checkButtonPress returns button number
+int buttonNum = 0;                                             // Used in function checkButtonPress returns button number
 int button1 = -1;                                              // Button 1
 int button2 = -1;                                              // Button 2
-int button3 = -1;                                             // Button 3
-int button4 = 19;                                             // Button 4
+int button3 = -1;                                              // Button 3
+int button4 = 19;                                              // Button 4
 
-int LEDG = 0;                                                // RED LED
+int LEDG = 0;                                                  // RED LED
 int LEDR = 45;                                                 // Green LED
+
+int prioPlug[4] = {};
+String nfcInfo[4] = {"", "", "", ""};
+const int plug1 = 15;
+const int plug2 = 16;
+const int plug3 = 17;
+const int plug4 = 18;
+
+const int RLA = 42;
+const int RLB = 41;
+const int RLC = 40;
+const int RLD = 39; 
+
+bool RLAS = false;
+bool RLBS = false;
+bool RLCS = false;
+bool RLDS = false;
 
 
 String tagID = "";                                            //Used for reading the tag id
@@ -77,7 +94,7 @@ int readNFC();                                               // Function used to
 String getTagID(byte *buffer, byte bufferSize);               // Converting ID into a String
 void welcomescreen();                                         // Main Screen
 void drawButton(String label, int x, int y);                  // Used to create boxes on LCD representing buttons
-void TapCardScreen();                                         // Prompt users to tap their NFC Card
+bool TapCardScreen(int plugName);                              // Prompt users to tap their NFC Card
 void FillScreenBlank();                                       // Clear Screen
 int checkButtonPress();                                       // Checks which button is pressed
 void onLED(String LEDcolor);                                  // Turns on LED input "G" (Green LED) or "R" (Red LED)
@@ -85,6 +102,8 @@ void offLED();                                                // Turns all LEDs 
 bool startUP();                                               // On power up begin this function
 bool iswifiUP();                                              // Check if WiFi is Up
 void getTime();                                               // Prints the time on the top left of the LCD
+int pilotRead(int plugNum);                                   // Checks each plug and assigns priority level
+void prioPlugShift();
 
 /////////////////////////////////////////////////////////////////////////////////////
 // Void Setup
@@ -101,6 +120,13 @@ void setup() {
   pinMode(button2, INPUT);
   pinMode(button3, INPUT);
   pinMode(button4, INPUT);
+
+  pinMode(RLA, OUTPUT);
+  pinMode(RLB, OUTPUT);
+  pinMode(RLC, OUTPUT);
+  pinMode(RLD, OUTPUT);
+
+  
 
   // Begin SPI for NFC reader and LCD
   SPI.begin(RFID_SCK_PIN, RFID_MISO_PIN, RFID_MOSI_PIN, RFID_SS_PIN);
@@ -130,22 +156,63 @@ void setup() {
 void loop() {
   unsigned long ChTime = millis() + 30000;
   while (millis() < ChTime) {
-  iswifiUP();
-  
+    delay(2000);
+      
+    pilotRead(plug1);
+    pilotRead(plug2);
+    pilotRead(plug3);
+    pilotRead(plug4);
 
-  checkButtonPress();
+    checkButtonPress();
+    Serial.print(prioPlug[0]);
+    Serial.print(prioPlug[1]);
+    Serial.print(prioPlug[2]);
+    Serial.println(prioPlug[3]);
 
-  if (buttonNum != 0) {
+    if (buttonNum != 0) {
 
-    TapCardScreen();
     
-    delay(500);
-    welcomescreen();
-  }
+    
+      delay(500);
+      welcomescreen();
+    }
 
   
   }
   getTime();
+  iswifiUP();
+  Serial.println("////////////////////////////");
+  Serial.println("////////////////////////////");
+  for (int i = 0; i < 4; ++i) {
+    if (prioPlug[3] == 0) {
+      RLAS = false;
+      RLBS = false;
+      RLCS = false;
+      RLDS = false;
+      break;
+    }
+
+    else if(prioPlug[i] > 0) {
+      controlRelays(prioPlug[i]);
+      prioPlug[i] = 0;
+      Serial.print("Loop");
+      for (int i = 0; i < 4 - 1; ++i) {
+        prioPlug[i] = prioPlug[i + 1];
+      }
+      prioPlug[4 - 1] = 0;  // Set the last element to 0 (or any default value)
+      Serial.print(prioPlug[0]);
+      Serial.print(prioPlug[1]);
+      Serial.print(prioPlug[2]);
+      Serial.print(prioPlug[3]);
+      //Serial.println(prioPlug[i]);
+      //Serial.println(": Prioplug");
+      break;
+
+    }
+  }
+  
+
+
 }
 
 /////////////////////////////////////////////////////////////////////////////////////
@@ -234,6 +301,19 @@ void welcomescreen() {
   drawButton("Plug 3", 173, 185);
   drawButton("Plug 4", 250, 185);
 
+  if (RLAS == true) {
+    drawButtonC("Plug 1", 20, 185);
+  }
+  else if (RLBS == true) {
+    drawButtonC("Plug 2", 97, 185);
+  }
+  else if (RLCS == true) {
+    drawButtonC("Plug 3", 173, 185);
+  }
+  else if (RLDS == true) {
+    drawButtonC("Plug 4", 250, 185);
+  }
+
   // Get Time
 
   getTime();
@@ -273,7 +353,7 @@ void drawButton(String label, int x, int y) {
 // TapCardScreen
 /////////////////////////////////////////////////////////////////////////////////////
 
-void TapCardScreen() {
+bool TapCardScreen(int plugName) {
 
   // Input: None
   // Output: None
@@ -292,6 +372,23 @@ void TapCardScreen() {
   tft.setCursor(75,75);
   tft.setTextSize(2);
   tft.print("Please Tap Card");
+  tft.setCursor(0, 170);
+  
+  
+
+  if (plugName == plug1) {
+    tft.print("Plug: 1");
+  }
+
+  if (plugName == plug2) {
+    tft.print("Plug: 2");
+  }
+  if (plugName == plug3) {
+    tft.print("Plug: 3");
+  }
+  if (plugName == plug4) {
+    tft.print("Plug: 4");
+  }
 
   // Print the Time
   getTime();
@@ -314,14 +411,31 @@ void TapCardScreen() {
     onLED("G");
     delay(2000);
     offLED();
+    Serial.print("PlugName -- ");
+    Serial.print(plugName);
+    if (plugName == plug1 && nfcInfo[0].isEmpty()) {
+      nfcInfo[0] = tagID;
+      Serial.println(nfcInfo[0]);
+    }
+
+    if (plugName == plug2  && nfcInfo[1].isEmpty()) {
+      nfcInfo[1] = tagID;
+    }
+    if (plugName == plug3  && nfcInfo[2].isEmpty()) {
+      nfcInfo[2] = tagID;
+    }
+    if (plugName == plug4  && nfcInfo[3].isEmpty()) {
+      nfcInfo[3] = tagID;
+    }
+
     tagID = "";
     FillScreenBlank();
-    return;
+    return true;
   }
 
   // If user has pushed exit button
   if (cardRead == 2) {
-    return;
+    return false;
   }
 
   // If NFC card has not been read
@@ -336,7 +450,7 @@ void TapCardScreen() {
     delay(2000);
     offLED();
     FillScreenBlank();
-    return;
+    return false;
   }
   
 }
@@ -353,19 +467,19 @@ int checkButtonPress() {
   // Description: Read each button pin and check if button is pressed return the
   //              button number. If no button is pressed return 0
 
-
+/*
   int Sbutton1 = digitalRead(button1);
   delay(50);
   int Sbutton2 = digitalRead(button2);
   delay(50);
   int Sbutton3 = digitalRead(button3);
   delay(50);
-  
+  */
   int Sbutton4 = digitalRead(button4);
   delay(50);
 
 
-
+/*
   if (Sbutton1 == LOW) {
       Serial.println("Button 1 Pressed");
       buttonNum = 1;
@@ -380,7 +494,7 @@ int checkButtonPress() {
       Serial.println("Button 3 Pressed");
       buttonNum = 3;
   }
-  
+  */
 
   if (Sbutton4 == LOW) {
       Serial.println("Button 4 Pressed");
@@ -536,6 +650,10 @@ bool iswifiUP () {
 
 }
 
+/////////////////////////////////////////////////////////////////////////////////////
+// getTime
+/////////////////////////////////////////////////////////////////////////////////////
+
 void getTime() {
   timeClient.update();
   String currentTime = timeClient.getFormattedTime();
@@ -547,10 +665,203 @@ void getTime() {
   
   tft.fillRect(0, 0, 150, 40, ILI9341_BLACK);
   tft.print(hoursMinutes);
-  
-  
-  
 
 }
 
+/////////////////////////////////////////////////////////////////////////////////////
+// pilotRead
+/////////////////////////////////////////////////////////////////////////////////////
 
+int pilotRead(int plugNum) {
+  int controlInput = analogRead(plugNum);
+  float voltage = (controlInput / (float)4095) * 3.3;
+  
+
+  // Display the corresponding voltage value
+  bool isPlugNumInArray = false;
+  int plugIndex = -1;  // To store the index of plugNum in the array
+  int plugIndexB = 0;
+  bool nfcRead = false;
+
+  // Check if plugNum is in the array
+  for (int i = 0; i < 4; ++i) {
+    if (prioPlug[i] == plugNum) {
+      isPlugNumInArray = true;
+      plugIndex = i;
+      break;
+    }
+  }
+
+  // Check the index of plugNum to update nfcInfo
+  if (plugNum == plug1) {
+    plugIndexB = 0;
+  } else if (plugNum == plug2) {
+    plugIndexB = 1;
+  } else if (plugNum == plug3) {
+    plugIndexB = 2;
+  } else if (plugNum == plug4) {
+    plugIndexB = 3;
+  }
+
+  // Update nfcInfo based on the nfcRead condition
+  if (!nfcRead && !nfcInfo[plugIndexB].isEmpty()) {
+    nfcRead = true;
+    //Serial.print("NFC read set to true: ");
+    //erial.println(plugIndexB);
+    //test
+  }
+
+  // Update the array based on voltage levels
+  if (voltage > 3.18 && voltage < 3.38) {
+    // If plugNum is in the array, remove it and shift the values to the left
+    if (isPlugNumInArray) {
+      for (int i = plugIndex; i < 4 - 1; ++i) {
+        prioPlug[i] = prioPlug[i + 1];
+      }
+      prioPlug[4 - 1] = 0;  // Set the last element to 0 (or any default value)
+    }
+    nfcInfo[plugIndexB].clear();
+    //Serial.print(plugIndexB);
+    //Serial.println("nfc Clear");
+    return 12;
+  } else if (!nfcRead && !isPlugNumInArray && voltage > 2.7 && voltage < 2.9) {
+    Serial.println("9V: ");
+    Serial.print(nfcInfo[plugIndexB]);
+
+    if (TapCardScreen(plugNum)) {
+      // Check if plugNum is not already in the array
+      bool isNewPlug = true;
+      for (int i = 0; i < 4; ++i) {
+        if (prioPlug[i] == plugNum) {
+          isNewPlug = false;
+          break;
+        }
+      }
+
+      if (isNewPlug) {
+        for (int i = 0; i < 4 - 1; ++i) {
+          prioPlug[i] = prioPlug[i + 1];
+        }
+
+        // Assign priority level to the new plug
+        prioPlug[4 - 1] = plugNum; // Adjust priority level as needed
+      }
+    } else {
+      welcomescreen();
+      return -1;
+    }
+    welcomescreen();
+    return 9;
+  } else if (voltage > 2.37 && voltage < 2.57) {
+    return 6;
+  } else if (voltage > 2.05 && voltage < 2.25) {
+    return 3;
+  } else if (voltage > 1.5 && voltage < 1.7) {
+    // If plugNum is in the array, remove it and shift the values to the left
+    if (isPlugNumInArray) {
+      for (int i = plugIndex; i < 4 - 1; ++i) {
+        prioPlug[i] = prioPlug[i + 1];
+      }
+      prioPlug[4 - 1] = 0;  // Set the last element to 0 (or any default value)
+    }
+    nfcInfo[plugIndexB].clear();
+    //Serial.print(plugIndexB);
+    //Serial.println("nfc Clear");
+    return 0;
+  } else if (voltage > 0.03 && voltage < 0.73) {
+    // If plugNum is in the array, remove it and shift the values to the left
+    if (isPlugNumInArray) {
+      for (int i = plugIndex; i < 4 - 1; ++i) {
+        prioPlug[i] = prioPlug[i + 1];
+      }
+      prioPlug[4 - 1] = 0;  // Set the last element to 0 (or any default value)
+    }
+    nfcInfo[plugIndexB].clear();
+    //Serial.print(plugIndexB);
+    //Serial.println("nfc Clear");
+    return 1;
+  } else if (nfcRead && !isPlugNumInArray) {
+      prioPlug[3] = plugNum;
+  } else {
+    return -1; // Return an indication of an unknown value
+  }
+
+  delay(1000); // Adjust the delay based on your requirements
+}
+
+
+void prioPlugShiftResetLast(int plugIndex) {
+  for (int i = plugIndex; i < 4 - 1; ++i) {
+      prioPlug[i] = prioPlug[i + 1];
+    }
+  prioPlug[4 - 1] = 0;  // Set the last element to 0 (or any default value)
+    
+}
+
+void controlRelays(int plugValue) {
+  Serial.print(plugValue);
+  welcomescreen();
+  // Turn off all relays
+  Serial.println("Relay LOW");
+
+  RLAS = false;
+  RLBS = false;
+  RLCS = false;
+  RLDS = false;
+
+  digitalWrite(RLA, LOW);
+  digitalWrite(RLB, LOW);
+  digitalWrite(RLC, LOW);
+  digitalWrite(RLD, LOW);
+
+  // Turn on the corresponding relay based on plugValue
+  switch (plugValue) {
+    case 15:
+      digitalWrite(RLA, HIGH);
+      Serial.println("Relay High A");
+      RLAS = true;
+      break;
+    case 16:
+      digitalWrite(RLB, HIGH);
+      Serial.println("Relay High B");
+      RLBS = true;
+      break;
+    case 17:
+      digitalWrite(RLC, HIGH);
+      RLCS = true;
+      Serial.println("Relay High C");
+      break;
+    case 18:
+      digitalWrite(RLD, HIGH);
+      RLDS = true;
+      Serial.println("Relay High D");
+      break;
+    // Add cases for plug3 and plug4 if needed
+  }
+  welcomescreen();
+}
+
+void drawButtonC(String label, int x, int y) {
+
+  // Input: label (Label of buttons)
+  //        int x (position of button x axis)
+  //        int y (position of button y axis)
+  // Output: None
+  // Adjustable Variables: buttonWidth (Desired button width in pixels)
+  //                       buttonHeight (Desired button height in pixels)
+  // Description: Draw a box representing a button at position x, y. Each button will
+  //              have a solid navy background and text will be in white.
+
+  int buttonWidth = 62;
+  int buttonHeight = 40;
+  
+  // Draw button background
+  tft.drawRect(x + 1, y + 1, buttonWidth - 2, buttonHeight - 2, ILI9341_WHITE);
+  tft.fillRect(x + 2, y + 2, buttonWidth, buttonHeight, ILI9341_GREEN);
+
+  // Draw button label
+  tft.setCursor(x + 10, y + 18);
+  tft.setTextSize(1);
+  tft.setTextColor(ILI9341_BLACK);
+  tft.print(label);
+}
