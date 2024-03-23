@@ -711,7 +711,7 @@ int pilotRead(int plugNum) {
       break;
     }
   }
-
+  //Django addition: maybe the block above this and below this can be combined since they are both just searching for which plug is activate
   // Check the index of plugNum to update nfcInfo
   if (plugNum == plug1) {
     plugIndexB = 0;
