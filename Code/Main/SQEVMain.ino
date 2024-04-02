@@ -11,8 +11,8 @@
 // LCD Pin Definition
 /////////////////////////////////////////////////////////////////////////////////////
 
-#define TFT_DC 35                                             // DC
-#define TFT_CS 8                                            // CS
+#define TFT_DC 35                                            // DC
+#define TFT_CS 8                                             // CS
 #define TFT_MISO -1                                          // Not Used
 #define TFT_CLK 12                                           // CLK
 #define TFT_RST 11                                           // RST
@@ -24,8 +24,8 @@
 
 #define RFID_SS_PIN 10                                        // SDA
 #define RFID_RST_PIN 14                                       // RST
-#define RFID_SCK_PIN 36                                        // SCK
-#define RFID_MOSI_PIN 38                                     // MOSI
+#define RFID_SCK_PIN 36                                       // SCK
+#define RFID_MOSI_PIN 38                                      // MOSI
 #define RFID_MISO_PIN 13                                      // MISO
 
 
@@ -48,27 +48,29 @@ bool startUpBool = false;                                      // Is start up co
  
 int cardRead = false;                                          // Is NFC card read or does user want to exit    
 
-int buttonNum = -1;                                             // Used in function checkButtonPress returns button number
-int button1 = 1;                                              // Button 1
-int button2 = 2;                                              // Button 2
+int buttonNum = -1;                                            // Used in function checkButtonPress returns button number
+int button1 = 1;                                               // Button 1
+int button2 = 2;                                               // Button 2
 int button3 = 20;                                              // Button 3
 int button4 = 19;                                              // Button 4
 
 int LEDG = 0;                                                  // RED LED
 int LEDR = 45;                                                 // Green LED
-int LEDF = 3;
+int LEDF = 3;                                                  // Fan LED
 
+int CdutyCycle = 169;                                          // Duty cycle
+int NdutyCycle = 0;                                            // No duty cycle
+int adcValue;
 int pilotFB;
 
-const int numSamples = 500; // Number of samples to take
-int adcValue;
-float peakVoltage = 0.0;
-int numMeasurements = 10; // Number of measurements to average
-float totalPeakVoltage = 0.0;
-const float Vref = 0.95; // 950mV
+const int numSamples = 500;                                   // Number of samples to take used for pilotRead
+float peakVoltage = 0.0;                                      // Used to store Peak Voltage
+int numMeasurements = 10;                                     // Number of measurements to average
+float totalPeakVoltage = 0.0;                                 // Peak voltage after sampling
+const float Vref = 0.95;                                      // 950mV
 
-int prioPlug[4] = {};
-String nfcInfo[4] = {"", "", "", ""};
+int prioPlug[4] = {0, 0, 0, 0};                               // Prio Array
+String nfcInfo[4] = {"", "", "", ""};                         // NFC array used to store NFC ID
 
 //Plug Arrays {Car Status, Relay Status, priority}
 //Default state -1
@@ -114,11 +116,11 @@ MFRC522 mfrc522(RFID_SS_PIN, RFID_RST_PIN);
 // Variable declaration
 /////////////////////////////////////////////////////////////////////////////////////
 
-int readNFC();                                               // Function used to read NFC waits 10 seconds
+int readNFC();                                                // Function used to read NFC waits 10 seconds
 String getTagID(byte *buffer, byte bufferSize);               // Converting ID into a String
 void welcomescreen();                                         // Main Screen
 void drawButton(String label, int x, int y);                  // Used to create boxes on LCD representing buttons
-bool TapCardScreen(int plugName);                              // Prompt users to tap their NFC Card
+bool TapCardScreen(int plugName);                             // Prompt users to tap their NFC Card
 void FillScreenBlank();                                       // Clear Screen
 int checkButtonPress();                                       // Checks which button is pressed
 void onLED(String LEDcolor);                                  // Turns on LED input "G" (Green LED) or "R" (Red LED)
@@ -209,7 +211,7 @@ void loop() {
     //if (plugSC[0] == 12  || plugSC[0] == 0) {
     //  break;
     //}
-    plugSD[0] = pilotRead(plug4);
+    //plugSD[0] = pilotRead(plug4);
     //if (plugSD[0] == 12  || plugSD[0] == 0) {
     //  break;
     //}
@@ -229,8 +231,8 @@ void loop() {
     updatePrio();
 
     
-    //checkButtonPress();
-    /*pi
+    checkButtonPress();
+    
     //Serial.print("Button num: ");
     //Serial.print(buttonNum);
     
@@ -242,7 +244,7 @@ void loop() {
       welcomescreen();
       buttonNum = -1;
     }
-    */
+    
 
   
   }
@@ -250,43 +252,25 @@ void loop() {
   iswifiUP();
 
   offLED();
-  int dutyCycle = 169;
-  analogWrite(pwmA, dutyCycle);
-  analogWrite(pwmB, dutyCycle);
-  analogWrite(pwmC, dutyCycle);
-  analogWrite(pwmD, dutyCycle);
+  
+  analogWrite(pwmA, CdutyCycle);
+  analogWrite(pwmB, CdutyCycle);
+  analogWrite(pwmC, CdutyCycle);
+  analogWrite(pwmD, CdutyCycle);
   delay(5);
 
   
   
-  for (int i = 0; i < 4; ++i) {
-    //if (prioPlug[3] == 0) {
-    //  plugSA[1] = 0;
-    //  plugSB[1] = 0;
-    //  plugSC[1] = 0;
-    //  plugSD[1] = 0;
-    //  break;
-    //}
 
-    if(prioPlug[i] > 0) {
-      
-      controlRelays(prioPlug[i]);
-      
-      prioPlug[i] = 0;
-      
-      for (int i = 0; i < 4 - 1; ++i) {
-        prioPlug[i] = prioPlug[i + 1];
-      }
-      prioPlug[4 - 1] = 0;  // Set the last element to 0 (or any default value)
-      Serial.print(prioPlug[0]);
-      Serial.print(prioPlug[1]);
-      Serial.print(prioPlug[2]);
-      Serial.print(prioPlug[3]);
-      
-      break;
-
-    }
+  controlRelays(prioPlug[0]);
+  prioPlug[0] = 0;
+  for (int i = 0; i < 4 - 1; ++i) {
+    prioPlug[i] = prioPlug[i + 1];
   }
+  prioPlug[4 - 1] = 0;
+  updatePrio();
+
+
   
 
 
@@ -324,7 +308,7 @@ int readNFC() {
     //  return 2;                                                              // If exit button is pressed return 2
     //}
   }
-  return 3;                                                              // Return false if tag is not read
+  return 3;                                                                   // Return false if tag is not read
 }
 
 String getTagID(byte *buffer, byte bufferSize) {                             // Format tag ID
@@ -513,6 +497,7 @@ bool TapCardScreen(int plugName) {
     }
     if (plugName == plug3  && nfcInfo[2].isEmpty()) {
       nfcInfo[2] = tagID;
+      Serial.println(tagID);
     }
     if (plugName == plug4  && nfcInfo[3].isEmpty()) {
       nfcInfo[3] = tagID;
@@ -569,11 +554,13 @@ int checkButtonPress() {
   delay(50);
 
 
-
+  
   if (Sbutton1 == LOW) {
       Serial.println("Button 1 Pressed");
       buttonNum = 1;
   }
+
+  /*
 
   else if (Sbutton2 == LOW) {
       Serial.println("Button 2 Pressed");
@@ -585,7 +572,7 @@ int checkButtonPress() {
       buttonNum = 3;
   }
   
-
+  */
   if (Sbutton4 == LOW) {
       Serial.println("Button 4 Pressed");
       buttonNum = 4;    
@@ -747,6 +734,13 @@ bool iswifiUP () {
 /////////////////////////////////////////////////////////////////////////////////////
 
 void getTime() {
+
+  // Input: None
+  // Output: None
+  // Adjustable Variables: None
+  // Description: Grabs most recent time from libary and outputs it to the screen
+
+
   timeClient.update();
   String currentTime = timeClient.getFormattedTime();
   int index = currentTime.indexOf(":");
@@ -766,39 +760,26 @@ void getTime() {
 
 int pilotRead(int plugNum) {
 
+  // Input: plugNum
+  // Output: Pilot Voltage
+  // Adjustable Variables: ADC read Voltages, numMeasurements, numSamples
+  // Description: Reades voltages at each plug and performs a series of functions
+  //              corrisponding to voltage read.
+
+
+  bool isPlugNumInArray = false;  // Check if plug is already in the array
+  int plugIndex = -1;             // To store the index of plugNum in the array
+  int nfcIndex = 0;               // Store NFC ID in array 0 = plug1, 1 = plug2, ....
+  bool nfcRead = false;           // Check if NFC is read
+  float voltage = 0;              // ADC Read Voltage
+  int* plugRCheck;
+
+/////////////////////////////////////////////////////////////////////////////////////
   
-
-  totalPeakVoltage = 0.0;
-  for (int j = 0; j < numMeasurements; j++) {
-    peakVoltage = 0.0; // Reset peak voltage for each measurement
-    // Sample the signal and find peak voltage
-    for (int i = 0; i < numSamples; i++) {
-      adcValue = analogRead(plugNum);
-      float voltage = adcValue * (Vref / 4095.0); // Convert ADC value to voltage using custom Vref
-      if (voltage > peakVoltage) {
-        peakVoltage = voltage;
-      }
-      delayMicroseconds(10); // Adjust delay as needed based on your sampling rate
-    }
-    totalPeakVoltage += peakVoltage; // Accumulate peak voltage for averaging
-  }
-  
-  float voltage = (totalPeakVoltage / numMeasurements) - 0.04; // Calculate average peak voltage
-    
-  Serial.print("Plug Num; ");
-  Serial.print(plugNum);
-  Serial.print(" ");
-  Serial.print("Voltage: ");
-  Serial.print(" ");
-  Serial.println(voltage);
-
-  // Display the corresponding voltage value
-  bool isPlugNumInArray = false;
-  int plugIndex = -1;  // To store the index of plugNum in the array
-  int nfcIndex = 0;
-  bool nfcRead = false;
-
-  // Check if plugNum is in the array
+  // Checks if plugNum is in array, Starts at element 0 and checks if plugNum is equal
+  // to the element. If plugNum is equal to the element set isPlugNumInArray to true.
+  // As well as set plugIndex to I where it remembers which element plugNum is in used
+  // to remove plug from prioPlug. 
   for (int i = 0; i < 4; ++i) {
     if (prioPlug[i] == plugNum) {
       isPlugNumInArray = true;
@@ -807,97 +788,180 @@ int pilotRead(int plugNum) {
     }
   }
 
-  // Check the index of plugNum to update nfcInfo
-  if (plugNum == plug1) {
-    nfcIndex = 0;
-  } else if (plugNum == plug2) {
+  // Switch case to store nfc ID in nfcIndex. nfcIndex[0] related to plug1...
+  switch (plugNum) {
+    case 6:
+      nfcIndex = 0;
+      plugRCheck = plugSA;
+      break; 
+    case 7:
       nfcIndex = 1;
-  } else if (plugNum == plug3) {
+      plugRCheck = plugSB;
+      break;
+    case 4:
       nfcIndex = 2;
-  } else if (plugNum == plug4) {
+      plugRCheck = plugSC;
+      break;
+    case 5:
       nfcIndex = 3;
+      plugRCheck = plugSD;
+      break;
   }
 
-  // Update nfcInfo based on the nfcRead condition
+
+  // Check if nfc is read 
   if (!nfcInfo[nfcIndex].isEmpty()) {
     nfcRead = true;
-    
   }
 
-  // Update the array based on voltage levels
-  if (voltage > 0.8 && voltage < 0.9) {
+  /////////////////////////////////////////////////////////////////////////////////////
 
-    if (isPlugNumInArray) {
+  // Read the voltage at plugNum, samples ADC specified by numMeasurements, Averages
+  // the peak voltage specified by numSamples. Then converts ADC value into useable
+  // voltage value. Where the reference voltage is 0.95mV
+
+  totalPeakVoltage = 0.0;
+  for (int j = 0; j < numMeasurements; j++) {
+    peakVoltage = 0.0; // Reset peak voltage for each measurement
+    // Sample the signal and find peak voltage
+    for (int i = 0; i < numSamples; i++) {
+      adcValue = analogRead(plugNum);
+      voltage = adcValue * (Vref / 4095.0); // Convert ADC value to voltage using custom Vref
+      if (voltage > peakVoltage) {
+        peakVoltage = voltage;
+      }
+      delayMicroseconds(10); // Adjust delay as needed based on your sampling rate
+    }
+    totalPeakVoltage += peakVoltage; // Accumulate peak voltage for averaging
+  }
+  
+  voltage = (totalPeakVoltage / numMeasurements) - 0.04; // Calculate average peak voltage
+
+
+  /////////////////////////////////////////////////////////////////////////////////////
+
+  // When pilot voltage is at 12V meaning no EV is plugged in. Ensure the plugNum is not
+  // in prioPlug and ensure NFC element related to plug is clear.
+
+  if (voltage > 0.79 && voltage < 0.9) {
+
+    if (!isPlugNumInArray) {
       prioPlug[plugIndex] = 0;
       nfcInfo[nfcIndex].clear();
+      formatPrio();
     }
+
     return 12;
-
-
-  } else if (!nfcRead && !isPlugNumInArray && voltage > 0.69 && voltage < 0.79) {
-      
-
-      if (TapCardScreen(plugNum)) {
-      
-      
-
-        // Assign priority level to the new plug
-        prioPlug[3] = plugNum; // Adjust priority level as needed
-        
-      }
-      else {
-      welcomescreen();
-      return -1;
-      }
-    welcomescreen();
-    return 9;
-
-    
-  } else if (!isPlugNumInArray && voltage > 0.55 && voltage < 0.62) {
-      return 6;
-  } else if (voltage >= 0.49 && voltage <= 0.52) {
-      onLED("R");
-      Serial.println("on Fan led");
-      for (int i = plugIndex; i < 4 - 1; ++i) {
-          prioPlug[i] = prioPlug[i + 1];
-        }
-        prioPlug[3] = plugNum;  // Set the last element to 0 (or any default value)
-      return 3;
-  } else if (voltage > 0.2 && voltage < 0.4) {
-    // If plugNum is in the array, remove it and shift the values to the left
-      if (isPlugNumInArray) {
-        for (int i = plugIndex; i < 4 - 1; ++i) {
-          prioPlug[i] = prioPlug[i + 1];
-        }
-        prioPlug[3] = 0;  // Set the last element to 0 (or any default value)
-      }
-      nfcInfo[nfcIndex].clear();
-    
-    
-      return 0;
-  } else if (voltage > 0.03 && voltage < 0.02) {
-    // If plugNum is in the array, remove it and shift the values to the left
-      if (isPlugNumInArray) {
-        for (int i = plugIndex; i < 4 - 1; ++i) {
-          prioPlug[i] = prioPlug[i + 1];
-        }
-        prioPlug[3] = 0;  // Set the last element to 0 (or any default value)
-      }
-      nfcInfo[nfcIndex].clear();
-    
-      return 1;
-  } else if (nfcRead && !isPlugNumInArray) {
-      for (int i = plugIndex; i < 4 - 1; ++i) {
-          prioPlug[i] = prioPlug[i + 1];
-        }
-        prioPlug[3] = plugNum;  // Set the last element to 0 (or any default value)
-      Serial.print("test");
-  } else {
-      return -1; // Return an indication of an unknown value
   }
 
-  delay(1000); // Adjust the delay based on your requirements
+  /////////////////////////////////////////////////////////////////////////////////////
+
+  // When pilot voltage is at 9V the EV is plugged in on standby. 
+  // Ensure that the plugNum is not in prioPlug and ensure NFC element related to plug 
+  // is not read. If plug is not in prioPlug and NFC element is empty promt user to 
+  // tap card. Once card is tapped add plug to the prio list.
+
+  else if (!nfcRead && !isPlugNumInArray && voltage > 0.69 && voltage < 0.78) {
+
+    if (TapCardScreen(plugNum)) {
+      addToPrio(plugNum);
+    }
+
+    else {
+      welcomescreen();
+      return -1;
+    }
+  
+    welcomescreen();
+    return 9;
+  }
+
+  /////////////////////////////////////////////////////////////////////////////////////
+
+  // When pilot read is at 6V this represents that the EV is charging we will do nothing
+  // in this case.
+
+  else if (voltage > 0.55 && voltage < 0.62) {
+    return 6;
+  }
+
+  /////////////////////////////////////////////////////////////////////////////////////
+
+  // When pilot read is at 3V this represents the EV is charging with fan ventilation.
+  // Turn on fan led to represent ventilation. This led stays on until voltage changes.
+
+  else if (voltage > 0.49 && voltage < 0.52) {
+    onLED("F");
+    return 3;
+  }
+
+  /////////////////////////////////////////////////////////////////////////////////////
+
+  // When pilot read is close to 0 this indicates an error in the system. Turn on the
+  // Red led representing a faulty EVSE
+
+  else if (voltage > 0.2 && voltage < 0.4) {
+    return 0;
+  }
+
+  /////////////////////////////////////////////////////////////////////////////////////
+
+  // When pilot read is close to 0 this indicates an error in the system. Turn on the
+  // Red led representing a faulty EVSE
+
+  else if (voltage > 0.03 && voltage < 0.02) {
+    onLED("R");
+    FillScreenBlank();
+    tft.setCursor(90, 110);
+    tft.setTextColor(ILI9341_RED);
+    tft.print("ERROR");
+    while (1);
+  }
+
+  else if (nfcRead && !isPlugNumInArray && plugRCheck[1] == 0) {
+    addToPrio(plugNum);
+  }
+
+  /////////////////////////////////////////////////////////////////////////////////////
+
+  // Otherwise return an unknown voltage
+
+  else {
+    return -1;
+  }
+  
 }
+
+
+
+/////////////////////////////////////////////////////////////////////////////////////
+// addToPrio & formatPrio
+/////////////////////////////////////////////////////////////////////////////////////
+
+void addToPrio (int plugNum) {
+  for (int i = 0; i < 4; ++i) { // Corrected loop condition
+    if (prioPlug[i] == 0) { // Corrected comparison operator from = to ==
+      prioPlug[i] = plugNum;
+      break; // Exit the loop after finding an empty slot
+    }
+}
+}
+
+void formatPrio() {
+  for (int i = 0; i < 3; ++i) {
+    if (prioPlug[i] == 0 && prioPlug[i + 1] != 0) {
+      // Shift elements to the left if there's a zero between non-zero elements
+      for (int j = i; j < 3; ++j) {
+        prioPlug[j] = prioPlug[j + 1];
+      }
+      prioPlug[3] = 0; // Set the last element to zero after shifting
+    }
+  }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////
+// controlRelays
+/////////////////////////////////////////////////////////////////////////////////////
 
 void controlRelays(int plugValue) {
   
@@ -949,6 +1013,10 @@ void controlRelays(int plugValue) {
   welcomescreen();
 }
 
+/////////////////////////////////////////////////////////////////////////////////////
+// drawButtonC
+/////////////////////////////////////////////////////////////////////////////////////
+
 void drawButtonC(String label, int x, int y) {
 
   // Input: label (Label of buttons)
@@ -996,7 +1064,12 @@ void updatePrio () {
   
 }
 
+/////////////////////////////////////////////////////////////////////////////////////
+// plugStat
+/////////////////////////////////////////////////////////////////////////////////////
+
 void plugStat(int plugNum, int time) {
+  
   unsigned long startTime = millis(); // Variable to store the start time
   bool exitPressed = false; // Flag to indicate if the "EXIT" button is pressed
   FillScreenBlank();
@@ -1006,8 +1079,8 @@ void plugStat(int plugNum, int time) {
   
   
   while (millis() - startTime < 10000) {
-
-    if (checkButtonPress() == 4) {
+    
+    if (checkButtonPress() == -1) {
       break;
     
     }
@@ -1060,23 +1133,19 @@ void plugStat(int plugNum, int time) {
         tft.setCursor(90, 110);
         tft.setTextColor(ILI9341_RED);
         tft.print("Not Charging");
-      }
 
-      // Print the third integer as the priority number
-      tft.setTextColor(ILI9341_WHITE);
-      tft.setCursor(90, 60);
-      tft.print("Priority: ");
-      tft.print(currentPlugArray[2]);
+        tft.setTextColor(ILI9341_WHITE);
+        tft.setCursor(90, 60);
+        tft.print("Priority: ");
+        tft.print(currentPlugArray[2]);
+
+      }      
     }
-
-    // Draw the "EXIT" button
-    
-
-    // Check if Button 4 (EXIT) is pressed
-  
-
-    // Add delay to reduce the loop frequency and save CPU cycles
     delay(100);
   }
   return;
 }
+
+/////////////////////////////////////////////////////////////////////////////////////
+// CTread
+/////////////////////////////////////////////////////////////////////////////////////
