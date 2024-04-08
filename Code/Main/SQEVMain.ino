@@ -1,3 +1,28 @@
+"""
+***************************************************************************************
+* Project Name: Smart Quad EV Charger                                                 *
+* Team Name: SQEV                                                                     *
+* Affiliated Institution: Sonoma State University Senior Design 2024                  *
+* Team Members: Calvin Pereira, Trent Glaze, Django Demetri                           *
+* IDE: Arduino IDE, V2.3.2                                                            *
+* Github: https://github.com/glazet/QuadEVCharger                                     *
+* Website: https://smartquadevcharger.weebly.com/                                     *
+* Abstract:                                                                           *
+*   The Smart Quad EV Charger project aims to address the increasing demand for       *
+*   Electric Vehicle (EV) charging infrastructure in the face of surging EV ownership.*
+*   Designed as a Level-2 Electric Vehicle Supply Equipment (EVSE), this innovation   *
+*   accommodates up to four standard EVs simultaneously, optimizing charging          *
+*   capabilities within constrained parking spaces. Utilizing SAE communication       *
+*   protocols such as control pilot signals, the charger integrates an algorithm      *
+*   that dynamically manages charging sessions to provide charge to each plugged in   *
+*   EV. Rigorous testing, covering parameters such as control pilot voltage and       *
+*   frequency tolerances, along with switching device control, verifies the           *
+*   successful implementation of essential engineering requirements. This project     *
+*   offers an innovative solution to the evolving landscape of EV charging needs.     *
+***************************************************************************************
+"""
+
+
 #include <Adafruit_GFX.h>
 #include <Adafruit_ILI9341.h>
 #include <SPI.h>
@@ -49,10 +74,7 @@ bool startUpBool = false;                                      // Is start up co
 int cardRead = false;                                          // Is NFC card read or does user want to exit    
 
 int buttonNum = -1;                                            // Used in function checkButtonPress returns button number
-int button1 = 1;                                               // Button 1
-int button2 = 2;                                               // Button 2
-int button3 = 20;                                              // Button 3
-int button4 = 19;                                              // Button 4
+int button[4] = {1, 2, 20, 19};                               // Button Pins
 
 int LEDG = 0;                                                  // RED LED
 int LEDR = 45;                                                 // Green LED
@@ -69,6 +91,12 @@ int numMeasurements = 10;                                     // Number of measu
 float totalPeakVoltage = 0.0;                                 // Peak voltage after sampling
 const float Vref = 0.95;                                      // 950mV
 
+float CTtotalPeakVoltage[4];
+float CTpeakVoltage[4] = {0.0, 0.0, 0.0, 0.0};
+float CTadcValue = 0.0;
+float CTfinalVoltage[4] = {0.0, 0.0, 0.0, 0.0}; // Array to hold the average voltage for each pin
+const int CTPins[] = {15, 16, 17, 18}; //the pin numbers
+
 int prioPlug[4] = {0, 0, 0, 0};                               // Prio Array
 String nfcInfo[4] = {"", "", "", ""};                         // NFC array used to store NFC ID
 
@@ -78,26 +106,16 @@ String nfcInfo[4] = {"", "", "", ""};                         // NFC array used 
 // Relay Status: 0, 1 (0 = OFF, 1 = ON)
 // Priority: 0, 1, 2, 3 (0 = Charging)
 
-int plugSA[3] = {12, -1, -1}; 
-int plugSB[3] = {12, -1, -1}; 
-int plugSC[3] = {12, -1, -1}; 
-int plugSD[3] = {12, -1, -1}; 
+int plugSA[4] = {12, -1, -1, -1}; 
+int plugSB[4] = {12, -1, -1, -1}; 
+int plugSC[4] = {12, -1, -1, -1}; 
+int plugSD[4] = {12, -1, -1, -1}; 
 
 
-const int plug1 = 6;
-const int plug2 = 7;
-const int plug3 = 4;
-const int plug4 = 5;
+const int plug[4] = {6, 7, 4, 5};
+const int pwm[4] = {47, 48, 46, 9};
+const int RL[4] = {42, 41, 40, 39};
 
-const int pwmA = 47;
-const int pwmB = 48;
-const int pwmC = 46;
-const int pwmD = 9;
-
-const int RLA = 42;
-const int RLB = 41;
-const int RLC = 40;
-const int RLD = 39; 
 
 
 
@@ -146,25 +164,25 @@ void setup() {
   // Setting corrisponding pins to output or input
   pinMode(LEDG, OUTPUT);
   pinMode(LEDR, OUTPUT);
-  pinMode(button1, INPUT);
-  pinMode(button2, INPUT);
-  pinMode(button3, INPUT);
-  pinMode(button4, INPUT);
+  pinMode(button[0], INPUT);
+  pinMode(button[1], INPUT);
+  pinMode(button[2], INPUT);
+  pinMode(button[3], INPUT);
 
-  pinMode(RLA, OUTPUT);
-  pinMode(RLB, OUTPUT);
-  pinMode(RLC, OUTPUT);
-  pinMode(RLD, OUTPUT);
+  pinMode(RL[0], OUTPUT);
+  pinMode(RL[1], OUTPUT);
+  pinMode(RL[2], OUTPUT);
+  pinMode(RL[3], OUTPUT);
 
-  pinMode(pwmA, OUTPUT);
-  pinMode(pwmB, OUTPUT);
-  pinMode(pwmC, OUTPUT);
-  pinMode(pwmD, OUTPUT);
+  pinMode(pwm[0], OUTPUT);
+  pinMode(pwm[1], OUTPUT);
+  pinMode(pwm[2], OUTPUT);
+  pinMode(pwm[3], OUTPUT);
 
-  pinMode(plug1, INPUT);
-  pinMode(plug2, INPUT);
-  pinMode(plug3, INPUT);
-  pinMode(plug4, INPUT);
+  pinMode(plug[0], INPUT);
+  pinMode(plug[1], INPUT);
+  pinMode(plug[2], INPUT);
+  pinMode(plug[3], INPUT);
 
   
 
@@ -199,46 +217,17 @@ void loop() {
   while (millis() < ChTime) {
     
       
-    plugSA[0] = pilotRead(plug1);
-    //if (plugSA[0] == 12  || plugSA[0] == 0) {
-    //  break;
-    //}
-    plugSB[0] = pilotRead(plug2);
-    //if (plugSB[0] == 12  || plugSB[0] == 0) {
-    //  break;
-    //}
-    plugSC[0] = pilotRead(plug3);
-    //if (plugSC[0] == 12  || plugSC[0] == 0) {
-    //  break;
-    //}
-    //plugSD[0] = pilotRead(plug4);
-    //if (plugSD[0] == 12  || plugSD[0] == 0) {
-    //  break;
-    //}
-    
-    
-
-    Serial.print("Prio List: ");
-    Serial.print(prioPlug[0]);
-    Serial.print(" ");
-    Serial.print(prioPlug[1]);
-    Serial.print(" ");
-    Serial.print(prioPlug[2]);
-    Serial.print(" ");
-    Serial.print(prioPlug[3]);
-    Serial.println(" ");
+    plugSA[0] = pilotRead(plug[0]);
+    plugSB[0] = pilotRead(plug[1]);
+    plugSC[0] = pilotRead(plug[2]);
+    plugSD[0] = pilotRead(plug[3]);
     
     updatePrio();
 
-    
     checkButtonPress();
     
-    //Serial.print("Button num: ");
-    //Serial.print(buttonNum);
     
     if (buttonNum != -1) {
-      Serial.print(buttonNum);
-      Serial.println("  button Press test");
       plugStat(buttonNum, ChTime);
       
       welcomescreen();
@@ -253,14 +242,11 @@ void loop() {
 
   offLED();
   
-  analogWrite(pwmA, CdutyCycle);
-  analogWrite(pwmB, CdutyCycle);
-  analogWrite(pwmC, CdutyCycle);
-  analogWrite(pwmD, CdutyCycle);
+  analogWrite(pwm[0], CdutyCycle);
+  analogWrite(pwm[1], CdutyCycle);
+  analogWrite(pwm[2], CdutyCycle);
+  analogWrite(pwm[3], CdutyCycle);
   delay(5);
-
-  
-  
 
   controlRelays(prioPlug[0]);
   prioPlug[0] = 0;
@@ -269,10 +255,6 @@ void loop() {
   }
   prioPlug[4 - 1] = 0;
   updatePrio();
-
-
-  
-
 
 }
 
@@ -330,7 +312,7 @@ void FillScreenBlank() {
   // Adjustable Variables: None
   // Description: Function draws a rectangle to clear the LCD    
 
-  tft.fillRect(0, 0, tft.width(), tft.height(), ILI9341_BLACK);             // Draw rectangle to clear screen
+  tft.fillRect(0, 0, tft.width(), tft.height(), ILI9341_WHITE);             // Draw rectangle to clear screen
   
 
 }
@@ -353,7 +335,7 @@ void welcomescreen() {
   // Display welcome text
   tft.setCursor(65, 75);
   tft.setTextSize(2.5);
-  tft.setTextColor(ILI9341_WHITE);
+  tft.setTextColor(ILI9341_BLACK);
   tft.print("Welcome EV Owner");
 
   // Draw buttons
@@ -362,30 +344,17 @@ void welcomescreen() {
   drawButton("Plug 3", 173, 185);
   drawButton("Plug 4", 250, 185);
 
-  Serial.print("PrioPlugRelayStat: ");
-  Serial.print(plugSA[1]);
-  Serial.print(" ");
-  Serial.print(plugSB[1]);
-  Serial.print(" ");
-  Serial.print(plugSC[1]);
-  Serial.print(" ");
-  Serial.print(plugSD[1]);
-  Serial.println(" ");
 
   if (plugSA[1] == 1) {
-    Serial.println("Charing 1");
     drawButtonC("Plug 1", 20, 185);
   }
   else if (plugSB[1] == 1) {
-    Serial.println("Charing 2");
     drawButtonC("Plug 2", 97, 185);
   }
   else if (plugSC[1] == 1) {
-    Serial.println("Charing 3");
     drawButtonC("Plug 3", 173, 185);
   }
   else if (plugSD[1] == 1) {
-    Serial.println("Charing 4");
     drawButtonC("Plug 4", 250, 185);
   }
 
@@ -443,7 +412,7 @@ bool TapCardScreen(int plugName) {
   FillScreenBlank();
 
   // Promt user to tap their card
-  tft.setTextColor(ILI9341_WHITE);
+  tft.setTextColor(ILI9341_BLACK);
   tft.setCursor(75,75);
   tft.setTextSize(2);
   tft.print("Please Tap Card");
@@ -451,17 +420,17 @@ bool TapCardScreen(int plugName) {
   
   
 
-  if (plugName == plug1) {
+  if (plugName == plug[0]) {
     tft.print("Plug: 1");
   }
 
-  if (plugName == plug2) {
+  if (plugName == plug[1]) {
     tft.print("Plug: 2");
   }
-  if (plugName == plug3) {
+  if (plugName == plug[2]) {
     tft.print("Plug: 3");
   }
-  if (plugName == plug4) {
+  if (plugName == plug[3]) {
     tft.print("Plug: 4");
   }
 
@@ -476,6 +445,7 @@ bool TapCardScreen(int plugName) {
 
   // If card is read
   if (cardRead == 1) {
+    tft.setTextColor(ILI9341_BLACK);
     tft.setTextSize(2);
     tft.setCursor(40, 100);
     tft.print("Card Read Successfull");
@@ -488,18 +458,17 @@ bool TapCardScreen(int plugName) {
     offLED();
     
 
-    if (plugName == plug1 && nfcInfo[0].isEmpty()) {
+    if (plugName == plug[0] && nfcInfo[0].isEmpty()) {
       nfcInfo[0] = tagID;
     }
 
-    if (plugName == plug2  && nfcInfo[1].isEmpty()) {
+    if (plugName == plug[1]  && nfcInfo[1].isEmpty()) {
       nfcInfo[1] = tagID;
     }
-    if (plugName == plug3  && nfcInfo[2].isEmpty()) {
+    if (plugName == plug[2]  && nfcInfo[2].isEmpty()) {
       nfcInfo[2] = tagID;
-      Serial.println(tagID);
     }
-    if (plugName == plug4  && nfcInfo[3].isEmpty()) {
+    if (plugName == plug[3]  && nfcInfo[3].isEmpty()) {
       nfcInfo[3] = tagID;
     }
 
@@ -516,7 +485,7 @@ bool TapCardScreen(int plugName) {
   // If NFC card has not been read
   else {
     FillScreenBlank();
-    //tft.fillScreen(ILI9341_BLACK);
+    //tft.fillScreen(ILI9341_WHITE);
     tft.setTextSize(2);
     tft.setCursor(65, 75);
     tft.setTextColor(ILI9341_RED);
@@ -543,40 +512,29 @@ int checkButtonPress() {
   //              button number. If no button is pressed return 0
 
 
-  int Sbutton1 = digitalRead(button1);
-  delay(50);
-  int Sbutton2 = digitalRead(button2);
-  delay(50);
-  int Sbutton3 = digitalRead(button3);
-  delay(50);
   
-  int Sbutton4 = digitalRead(button4);
-  delay(50);
-
-
-  
-  if (Sbutton1 == LOW) {
-      Serial.println("Button 1 Pressed");
+  if (digitalRead(button[0]) == LOW) {
       buttonNum = 1;
   }
+  
 
   /*
 
-  else if (Sbutton2 == LOW) {
-      Serial.println("Button 2 Pressed");
+  else if (digitalRead(button[1] == LOW) {
       buttonNum = 2;
   }
+  
 
-  else if (Sbutton3 == LOW) {
-      Serial.println("Button 3 Pressed");
+  else if (digitalRead(button[2]) == LOW) {
       buttonNum = 3;
   }
   
+  
   */
-  if (Sbutton4 == LOW) {
-      Serial.println("Button 4 Pressed");
+  else if (digitalRead(button[3]) == LOW) {
       buttonNum = 4;    
   }
+  
   
   
   else {
@@ -606,8 +564,6 @@ void onLED(String LEDcolor) {
   }
   if (LEDcolor == "F") {
     digitalWrite(LEDF, HIGH);
-    
-    Serial.println("LEDF HIGH");
     delay(1000);
   }
 }
@@ -622,7 +578,6 @@ void offLED() {
   // Output: None
   // Adjustable Variables: None
   // Description: Turn off all LEDs
-  Serial.println("OFF LED");
 
   digitalWrite(LEDG, LOW);
   digitalWrite(LEDR, LOW);
@@ -646,7 +601,7 @@ bool startUP() {
   // Clear screen and promt "Begin initial start up"
   FillScreenBlank();
   tft.setTextSize(2);
-  tft.setTextColor(ILI9341_WHITE);
+  tft.setTextColor(ILI9341_BLACK);
   tft.setCursor(20, 75);
   tft.print("Beginning Initial Startup");
   delay(5);
@@ -745,11 +700,11 @@ void getTime() {
   String currentTime = timeClient.getFormattedTime();
   int index = currentTime.indexOf(":");
   String hoursMinutes = currentTime.substring(0, index + 3);
-  tft.setTextColor(ILI9341_WHITE);
+  tft.setTextColor(ILI9341_BLACK);
   tft.setTextSize(2);
   tft.setCursor(0, 0);
   
-  tft.fillRect(0, 0, 150, 40, ILI9341_BLACK);
+  tft.fillRect(0, 0, 150, 40, ILI9341_WHITE);
   tft.print(hoursMinutes);
 
 }
@@ -843,7 +798,7 @@ int pilotRead(int plugNum) {
   // When pilot voltage is at 12V meaning no EV is plugged in. Ensure the plugNum is not
   // in prioPlug and ensure NFC element related to plug is clear.
 
-  if (voltage > 0.79 && voltage < 0.9) {
+  if (voltage > 0.81 && voltage < 0.9) {
 
     if (!isPlugNumInArray) {
       prioPlug[plugIndex] = 0;
@@ -861,7 +816,7 @@ int pilotRead(int plugNum) {
   // is not read. If plug is not in prioPlug and NFC element is empty promt user to 
   // tap card. Once card is tapped add plug to the prio list.
 
-  else if (!nfcRead && !isPlugNumInArray && voltage > 0.69 && voltage < 0.78) {
+  else if (!nfcRead && !isPlugNumInArray && voltage > 0.69 && voltage < 0.80) {
 
     if (TapCardScreen(plugNum)) {
       addToPrio(plugNum);
@@ -900,7 +855,7 @@ int pilotRead(int plugNum) {
   // When pilot read is close to 0 this indicates an error in the system. Turn on the
   // Red led representing a faulty EVSE
 
-  else if (voltage > 0.2 && voltage < 0.4) {
+   else if (voltage > 0.2 && voltage < 0.4) {
     return 0;
   }
 
@@ -937,6 +892,11 @@ int pilotRead(int plugNum) {
 /////////////////////////////////////////////////////////////////////////////////////
 // addToPrio & formatPrio
 /////////////////////////////////////////////////////////////////////////////////////
+  // Input: plugNum
+  // Output: None
+  // Adjustable Variables: None
+  // Description: Adds plugNum to priority, also ensures there are no spaces in
+  //              the array.
 
 void addToPrio (int plugNum) {
   for (int i = 0; i < 4; ++i) { // Corrected loop condition
@@ -962,6 +922,13 @@ void formatPrio() {
 /////////////////////////////////////////////////////////////////////////////////////
 // controlRelays
 /////////////////////////////////////////////////////////////////////////////////////
+  // Input: plugNum, time (total time charged)
+  // Output: None
+  // Adjustable Variables: buttonWidth (Desired button width in pixels)
+  //                       buttonHeight (Desired button height in pixels)
+  // Description: Displays the status of selected plug, Charge state, time charged,
+  //              and power in kWh. If there are multiple cars plugged in this screen
+  //              will print the priority posistion. 
 
 void controlRelays(int plugValue) {
   
@@ -975,36 +942,29 @@ void controlRelays(int plugValue) {
   plugSD[1] = 0;
 
   
-  digitalWrite(RLA, LOW);
-  digitalWrite(RLB, LOW);
-  digitalWrite(RLC, LOW);
-  digitalWrite(RLD, LOW);
+  digitalWrite(RL[0], LOW);
+  digitalWrite(RL[1], LOW);
+  digitalWrite(RL[2], LOW);
+  digitalWrite(RL[3], LOW);
+  delay(2000);
 
   // Turn on the corresponding relay based on plugValue
   switch (plugValue) {
     case 6:
-      digitalWrite(RLA, HIGH);
-      Serial.println("Relay High A");
-      
+      digitalWrite(RL[0], HIGH);
       plugSA[1] = 1;
       break;
     case 7:
-      digitalWrite(RLB, HIGH);
-      Serial.println("Relay High B");
-      
+      digitalWrite(RL[1], HIGH);
       plugSB[1] = 1;
       break;
     case 4:
-      digitalWrite(RLC, HIGH);
-      
+      digitalWrite(RL[2], HIGH);
       plugSC[1] = 1;
-      Serial.println("Relay High C");
       break;
     case 5:
-      digitalWrite(RLD, HIGH);
-      
+      digitalWrite(RL[3], HIGH);
       plugSD[1] = 1;
-      Serial.println("Relay High D");
       break;
     case -1:
       break;
@@ -1047,17 +1007,17 @@ void updatePrio () {
   
   for (int i = 0; i < 4; i++) {
     
-    if (prioPlug[i] == plug1) {
+    if (prioPlug[i] == plug[0]) {
       plugSA[2] = i;
       
     }
-    else if (prioPlug[i] == plug2) {
+    else if (prioPlug[i] == plug[1]) {
       plugSB[2] = i;
     }
-    else if (prioPlug[i] == plug3) {
+    else if (prioPlug[i] == plug[2]) {
       plugSC[2] = i;
     }
-    else if (prioPlug[i] == plug4) {
+    else if (prioPlug[i] == plug[3]) {
       plugSD[2] = i;
     }
   }
@@ -1067,57 +1027,76 @@ void updatePrio () {
 /////////////////////////////////////////////////////////////////////////////////////
 // plugStat
 /////////////////////////////////////////////////////////////////////////////////////
+  // Input: plugNum, time (total time charged)
+  // Output: None
+  // Adjustable Variables: buttonWidth (Desired button width in pixels)
+  //                       buttonHeight (Desired button height in pixels)
+  // Description: Displays the status of selected plug, Charge state, time charged,
+  //              and power in kWh. If there are multiple cars plugged in this screen
+  //              will print the priority posistion. 
 
 void plugStat(int plugNum, int time) {
   
-  unsigned long startTime = millis(); // Variable to store the start time
-  bool exitPressed = false; // Flag to indicate if the "EXIT" button is pressed
+  unsigned long startTime = millis();
+  bool exitPressed = false; 
   FillScreenBlank();
   getTime();
   drawButton("EXIT", 250, 160);
-  // Your existing setup code here
   
+  // Used to capture current voltage
+  int CTplace = -1;
   
+  //Display this page for 10 seconds
   while (millis() - startTime < 10000) {
     
+    // Check if button 4 is pressed then exit
     if (checkButtonPress() == -1) {
       break;
     
     }
     
+    // Print Plug Status
     tft.setTextSize(2);
-    tft.setTextColor(ILI9341_WHITE);
+    tft.setTextColor(ILI9341_BLACK);
     tft.setCursor(90, 30);
     tft.print("Plug Status");
     
+    
+    // Print the plug Number
+    tft.setCursor(240, 10);
+    tft.print("Plug ");
+    tft.print(plugNum);
 
-    if (plugNum >= 1 && plugNum <= 4) { // Make sure plugNum is within range
-      tft.setCursor(240, 10);
-      tft.print("Plug ");
-      tft.print(plugNum);
+    // Create a new array that is only used in this function that points
+    // to the status array of selected plug
+    int* currentPlugArray; // Pointer to current plug array
 
-      int* currentPlugArray; // Pointer to current plug array
+    // Determine which plug array to use based on plugNum
+    switch (plugNum) {
+       case 1:
+        currentPlugArray = plugSA;
+        CTplace = 0;
+        break;
+      case 2:
+        currentPlugArray = plugSB;
+         CTplace = 1;
+         break;
+       case 3:
+         currentPlugArray = plugSC;
+         CTplace = 2;
+         break;
+       case 4:
+         currentPlugArray = plugSD;
+         CTplace = 3;
+         break;
+       default:
+         // Handle unexpected case
+         return;
+     }
 
-      // Determine which plug array to use based on plugNum
-      switch (plugNum) {
-        case 1:
-          currentPlugArray = plugSA;
-          break;
-        case 2:
-          currentPlugArray = plugSB;
-          break;
-        case 3:
-          currentPlugArray = plugSC;
-          break;
-        case 4:
-          currentPlugArray = plugSD;
-          break;
-        default:
-          // Handle unexpected case
-          return;
-      }
-
-      if (currentPlugArray[1] == 1) {
+    // If the relay status of the plug is set to 1 in array
+     if (currentPlugArray[1] == 1) {
+        // Print Charging car
         tft.setCursor(90, 110);
         tft.setTextColor(ILI9341_GREEN);
         tft.print("Charging Car");
@@ -1125,27 +1104,68 @@ void plugStat(int plugNum, int time) {
         // Calculate remaining charging time in minutes
         int remainingMinutes = (time - millis() + startTime) / (1000 * 60);
         tft.setCursor(90, 140);
-        tft.setTextColor(ILI9341_WHITE);
+        tft.setTextColor(ILI9341_BLACK);
         //tft.print("Remaining Time: ");
         tft.print(remainingMinutes);
         tft.print(" minutes");
-      } else {
+
+        // Call CTread to calculate power in KWh
+        CTread();
+        // Print power to screen
+        tft.setCursor(90, 90);
+        tft.setTextColor(ILI9341_BLACK);
+        tft.print("KWH: ");
+        tft.print(CTfinalVoltage[CTplace]);
+        
+
+     } else {
+        // If relay status is set to 0 in array
+        // Print Not charging
         tft.setCursor(90, 110);
         tft.setTextColor(ILI9341_RED);
         tft.print("Not Charging");
-
         tft.setTextColor(ILI9341_WHITE);
         tft.setCursor(90, 60);
+        // Print the Priority number
         tft.print("Priority: ");
         tft.print(currentPlugArray[2]);
 
-      }      
-    }
-    delay(100);
-  }
+     }      
+   }
+   delay(100);
+  
   return;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////
 // CTread
 /////////////////////////////////////////////////////////////////////////////////////
+  // Input: None
+  // Output: None
+  // Adjustable Variables: 
+  // Description: Cycles through each CTpins to read current (four votlages). Samples
+  //              and averages the voltage. Then outputs the calculated power to an
+  //              array.
+
+void CTread() {
+  for (int z = 0; z < 4; z++) {//for loop that cycles through each index of CTPins, aka, all four of the voltages we want in the code
+    CTtotalPeakVoltage[z] = 0.0;
+    for (int x = 0; x < numMeasurements; x++) {
+      CTpeakVoltage[z] = 0.0;  // Reset peak voltage for each measurement
+      // Sample the signal and find peak voltage
+      for (int y = 0; y < numSamples; y++) {
+        CTadcValue = analogRead(CTPins[z]); 
+        float voltage = CTadcValue * (Vref / 4095.0); 
+        if (voltage > CTpeakVoltage[z]) {
+          CTpeakVoltage[z] = voltage;
+        }
+        delayMicroseconds(10);  // Adjust delay as needed based on your sampling rate
+      }
+      CTtotalPeakVoltage[z] += CTpeakVoltage[z];  // Accumulate peak voltage for averaging
+    }
+    CTfinalVoltage[z] = (CTtotalPeakVoltage[z] / numMeasurements + .01); // Calculate average peak voltage for each pin
+  }
+}
+
+
+
