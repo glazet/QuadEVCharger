@@ -1,7 +1,7 @@
 # SmartQuadEVCharger
 Sonoma State University: 2023-24 Senior Design Project
 
-* Github: https://github.com/glazet/QuadEVCharger                                     *
+* Github: https://github.com/glazet/QuadEVCharger                                     
 * Website: https://smartquadevcharger.weebly.com/ 
 
 
