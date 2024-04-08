@@ -4,8 +4,8 @@ Sonoma State University: 2023-24 Senior Design Project
 * Github: https://github.com/glazet/QuadEVCharger                                     
 * Website: https://smartquadevcharger.weebly.com/ 
 
-Trent Glaze -
-Django Demetri - 
+Trent Glaze -                                                                    
+Django Demetri -                                                     
 Calvin Pereira - https://www.linkedin.com/in/calvin-pereira-652aa7205/
 
 The Smart Quad EV Charger project aims to address the increasing demand for Electric Vehicle (EV) charging infrastructure in the face of surging EV ownership. Designed as a Level-2 Electric Vehicle Supply Equipment (EVSE), this innovation accommodates up to four standard EVs simultaneously, optimizing charging capabilities within constrained parking spaces. Utilizing SAE communication protocols such as control pilot signals, the charger integrates an algorithm that dynamically manages charging sessions to provide charge to each plugged in EV. Rigorous testing, covering parameters such as control pilot voltage and frequency tolerances, along with switching device control, verifies the successful implementation of essential engineering requirements. This project offers an innovative solution to the evolving landscape of EV charging needs.
