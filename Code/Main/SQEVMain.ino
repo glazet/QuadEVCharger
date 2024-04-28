@@ -1,4 +1,4 @@
-"""
+/*
 ***************************************************************************************
 * Project Name: Smart Quad EV Charger                                                 *
 * Team Name: SQEV                                                                     *
@@ -20,7 +20,7 @@
 *   successful implementation of essential engineering requirements. This project     *
 *   offers an innovative solution to the evolving landscape of EV charging needs.     *
 ***************************************************************************************
-"""
+*/
 
 
 #include <Adafruit_GFX.h>
@@ -76,12 +76,12 @@ int cardRead = false;                                          // Is NFC card re
 int buttonNum = -1;                                            // Used in function checkButtonPress returns button number
 int button[4] = {1, 2, 20, 19};                               // Button Pins
 
-int LEDG = 0;                                                  // RED LED
+int LEDG = 21;                                                  // RED LED
 int LEDR = 45;                                                 // Green LED
 int LEDF = 3;                                                  // Fan LED
 
 int CdutyCycle = 169;                                          // Duty cycle
-int NdutyCycle = 0;                                            // No duty cycle
+int NdutyCycle = 254;                                            // No duty cycle
 int adcValue;
 int pilotFB;
 
@@ -164,6 +164,8 @@ void setup() {
   // Setting corrisponding pins to output or input
   pinMode(LEDG, OUTPUT);
   pinMode(LEDR, OUTPUT);
+  pinMode(LEDF, OUTPUT);
+
   pinMode(button[0], INPUT);
   pinMode(button[1], INPUT);
   pinMode(button[2], INPUT);
@@ -193,7 +195,7 @@ void setup() {
   tft.begin();
 
   // Set LCD rotation and Clear screen
-  tft.setRotation(1);
+  tft.setRotation(3);
   FillScreenBlank();
 
   // Begin Initial start up
@@ -204,6 +206,8 @@ void setup() {
   }
 
   welcomescreen();                                          // Draw welcome screen on LCD
+
+  controlRelays(-1);
 
 }
 
@@ -216,15 +220,24 @@ void loop() {
   unsigned long ChTime = millis() + 15000;
   while (millis() < ChTime) {
     
-      
-    plugSA[0] = pilotRead(plug[0]);
-    plugSB[0] = pilotRead(plug[1]);
-    plugSC[0] = pilotRead(plug[2]);
-    plugSD[0] = pilotRead(plug[3]);
+    Serial.print("5");
+    Serial.println();
+    Serial.println("Read 0");
+    pilotRead(plug[0]);
+    Serial.println("read 1");
+    pilotRead(plug[1]);
+    Serial.println("2");
+    pilotRead(plug[2]);
+    pilotRead(plug[3]);
+    Serial.println("..................................");
+    Serial.print("6");
+    
     
     updatePrio();
+    Serial.print("7");
 
     checkButtonPress();
+    Serial.print("8");
     
     
     if (buttonNum != -1) {
@@ -234,27 +247,34 @@ void loop() {
       buttonNum = -1;
     }
     
+    Serial.print("9");
 
   
   }
+
   getTime();
+  Serial.print("10");
   iswifiUP();
+  Serial.print("11");
+  
 
   offLED();
   
-  analogWrite(pwm[0], CdutyCycle);
-  analogWrite(pwm[1], CdutyCycle);
-  analogWrite(pwm[2], CdutyCycle);
-  analogWrite(pwm[3], CdutyCycle);
+  
   delay(5);
+  Serial.print("12");
 
   controlRelays(prioPlug[0]);
+  Serial.print("1");
   prioPlug[0] = 0;
+   Serial.print("2");
   for (int i = 0; i < 4 - 1; ++i) {
     prioPlug[i] = prioPlug[i + 1];
   }
   prioPlug[4 - 1] = 0;
+  Serial.print("3");
   updatePrio();
+  Serial.print("4");
 
 }
 
@@ -518,9 +538,9 @@ int checkButtonPress() {
   }
   
 
-  /*
+  
 
-  else if (digitalRead(button[1] == LOW) {
+  else if (digitalRead(button[1]) == LOW) {
       buttonNum = 2;
   }
   
@@ -530,7 +550,7 @@ int checkButtonPress() {
   }
   
   
-  */
+  
   else if (digitalRead(button[3]) == LOW) {
       buttonNum = 4;    
   }
@@ -538,7 +558,7 @@ int checkButtonPress() {
   
   
   else {
-    //buttonNum = -1;
+    buttonNum = -1;
   }
   return buttonNum;
 }
@@ -564,7 +584,8 @@ void onLED(String LEDcolor) {
   }
   if (LEDcolor == "F") {
     digitalWrite(LEDF, HIGH);
-    delay(1000);
+    Serial.println("in function fan led high");
+    
   }
 }
 
@@ -581,7 +602,7 @@ void offLED() {
 
   digitalWrite(LEDG, LOW);
   digitalWrite(LEDR, LOW);
-  //digitalWrite(LEDF, LOW);
+  digitalWrite(LEDF, LOW);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////
@@ -693,13 +714,34 @@ void getTime() {
   // Input: None
   // Output: None
   // Adjustable Variables: None
-  // Description: Grabs most recent time from libary and outputs it to the screen
-
+  // Description: Grabs most recent time from library and outputs it to the screen
 
   timeClient.update();
   String currentTime = timeClient.getFormattedTime();
+  
+  // Parse hours and minutes
   int index = currentTime.indexOf(":");
-  String hoursMinutes = currentTime.substring(0, index + 3);
+  int hours = currentTime.substring(0, index).toInt();
+  int minutes = currentTime.substring(index + 1, index + 3).toInt();
+
+  // Subtract 1 from hours
+  hours = (hours + 1) % 24;
+
+  // Update hoursMinutes with adjusted time
+  String hoursMinutes;
+  if (hours < 10) {
+    hoursMinutes = "2" + String(hours);
+  } else {
+    hoursMinutes = String(hours);
+  }
+  hoursMinutes += ":";
+
+  if (minutes < 10) {
+    hoursMinutes += "0" + String(minutes);
+  } else {
+    hoursMinutes += String(minutes);
+  }
+  
   tft.setTextColor(ILI9341_BLACK);
   tft.setTextSize(2);
   tft.setCursor(0, 0);
@@ -709,11 +751,13 @@ void getTime() {
 
 }
 
+
 /////////////////////////////////////////////////////////////////////////////////////
 // pilotRead
 /////////////////////////////////////////////////////////////////////////////////////
 
 int pilotRead(int plugNum) {
+  Serial.println("Start Function");
 
   // Input: plugNum
   // Output: Pilot Voltage
@@ -728,6 +772,7 @@ int pilotRead(int plugNum) {
   bool nfcRead = false;           // Check if NFC is read
   float voltage = 0;              // ADC Read Voltage
   int* plugRCheck;
+  Serial.println("Declare Variable");
 
 /////////////////////////////////////////////////////////////////////////////////////
   
@@ -735,13 +780,14 @@ int pilotRead(int plugNum) {
   // to the element. If plugNum is equal to the element set isPlugNumInArray to true.
   // As well as set plugIndex to I where it remembers which element plugNum is in used
   // to remove plug from prioPlug. 
-  for (int i = 0; i < 4; ++i) {
-    if (prioPlug[i] == plugNum) {
+  for (int z = 0; z < 4; ++z) {
+    if (prioPlug[z] == plugNum) {
       isPlugNumInArray = true;
-      plugIndex = i;
+      plugIndex = z;
       break;
     }
   }
+  Serial.println("Check if plug is in array");
 
   // Switch case to store nfc ID in nfcIndex. nfcIndex[0] related to plug1...
   switch (plugNum) {
@@ -762,12 +808,14 @@ int pilotRead(int plugNum) {
       plugRCheck = plugSD;
       break;
   }
+  Serial.println("Switch case");
 
 
   // Check if nfc is read 
   if (!nfcInfo[nfcIndex].isEmpty()) {
     nfcRead = true;
   }
+  Serial.println("nfc Read");
 
   /////////////////////////////////////////////////////////////////////////////////////
 
@@ -791,6 +839,15 @@ int pilotRead(int plugNum) {
   }
   
   voltage = (totalPeakVoltage / numMeasurements) - 0.04; // Calculate average peak voltage
+  Serial.println("voltage read");
+
+  
+  Serial.print("Plug: ");
+  Serial.print(plugNum);
+  Serial.print(" Voltage: ");
+  Serial.println(voltage);
+  
+  
 
 
   /////////////////////////////////////////////////////////////////////////////////////
@@ -798,16 +855,22 @@ int pilotRead(int plugNum) {
   // When pilot voltage is at 12V meaning no EV is plugged in. Ensure the plugNum is not
   // in prioPlug and ensure NFC element related to plug is clear.
 
-  if (voltage > 0.81 && voltage < 0.9) {
+  if (voltage > 0.81 && voltage < 0.95) {
+    Serial.println("A12");
+    if (plugRCheck[1] == 1) {
+      offLED();
+    }
 
     if (!isPlugNumInArray) {
       prioPlug[plugIndex] = 0;
       nfcInfo[nfcIndex].clear();
       formatPrio();
+    
     }
-
+    Serial.println("12");
     return 12;
   }
+  
 
   /////////////////////////////////////////////////////////////////////////////////////
 
@@ -817,6 +880,11 @@ int pilotRead(int plugNum) {
   // tap card. Once card is tapped add plug to the prio list.
 
   else if (!nfcRead && !isPlugNumInArray && voltage > 0.69 && voltage < 0.80) {
+    Serial.println("A9");
+    if (plugRCheck[1] == 1) {
+      offLED();
+    }
+    
 
     if (TapCardScreen(plugNum)) {
       addToPrio(plugNum);
@@ -824,12 +892,14 @@ int pilotRead(int plugNum) {
 
     else {
       welcomescreen();
+       Serial.println("9 return -1");
       return -1;
     }
-  
+    Serial.println("9");
     welcomescreen();
     return 9;
   }
+  
 
   /////////////////////////////////////////////////////////////////////////////////////
 
@@ -837,27 +907,51 @@ int pilotRead(int plugNum) {
   // in this case.
 
   else if (voltage > 0.55 && voltage < 0.62) {
+    Serial.println("A6");
+    if (plugRCheck[1] == 1) {
+      offLED();
+    }
+    Serial.println("6");
     return 6;
   }
+  
 
   /////////////////////////////////////////////////////////////////////////////////////
 
   // When pilot read is at 3V this represents the EV is charging with fan ventilation.
-  // Turn on fan led to represent ventilation. This led stays on until voltage changes.
+  // Turn on fan led to repre                            sent ventilation. This led stays on until voltage changes.
 
-  else if (voltage > 0.49 && voltage < 0.52) {
+  else if (voltage >= 0.46 && voltage <= 0.52) {
+    Serial.println("A3");
+    
     onLED("F");
+    Serial.println("F led ON");
+    Serial.println("3");
     return 3;
   }
+  
 
   /////////////////////////////////////////////////////////////////////////////////////
 
   // When pilot read is close to 0 this indicates an error in the system. Turn on the
   // Red led representing a faulty EVSE
 
-   else if (voltage > 0.2 && voltage < 0.4) {
+   else if (voltage > 0.2 && voltage < 0.44) {
+    Serial.println("A0");
+    if (plugRCheck[1] == 1) {
+      offLED();
+    }
+    offLED();
+    onLED("R");
+    FillScreenBlank();
+    tft.setCursor(90, 110);
+    tft.setTextColor(ILI9341_RED);
+    tft.print("ERROR");
+    while (1);
+    Serial.println("0");
     return 0;
   }
+  
 
   /////////////////////////////////////////////////////////////////////////////////////
 
@@ -865,27 +959,36 @@ int pilotRead(int plugNum) {
   // Red led representing a faulty EVSE
 
   else if (voltage > 0.03 && voltage < 0.02) {
+    Serial.println("AError");
     onLED("R");
     FillScreenBlank();
     tft.setCursor(90, 110);
     tft.setTextColor(ILI9341_RED);
     tft.print("ERROR");
+    Serial.println("error");
     while (1);
   }
+  
 
   else if (nfcRead && !isPlugNumInArray && plugRCheck[1] == 0) {
+    Serial.println("something idk");
     addToPrio(plugNum);
   }
+  
 
   /////////////////////////////////////////////////////////////////////////////////////
 
   // Otherwise return an unknown voltage
-
   else {
+    Serial.println("-1");
     return -1;
   }
+
+  
+ 
   
 }
+
 
 
 
@@ -940,6 +1043,14 @@ void controlRelays(int plugValue) {
   plugSB[1] = 0;
   plugSC[1] = 0;
   plugSD[1] = 0;
+  Serial.println("Put 0 in array");
+
+  analogWrite(pwm[0], NdutyCycle);
+  analogWrite(pwm[1], NdutyCycle);
+  analogWrite(pwm[2], NdutyCycle);
+  analogWrite(pwm[3], NdutyCycle);
+  delay(1000);
+  Serial.println("reset duty cycle");
 
   
   digitalWrite(RL[0], LOW);
@@ -947,29 +1058,42 @@ void controlRelays(int plugValue) {
   digitalWrite(RL[2], LOW);
   digitalWrite(RL[3], LOW);
   delay(2000);
+  Serial.println("reset relays");
 
   // Turn on the corresponding relay based on plugValue
+
   switch (plugValue) {
     case 6:
+      analogWrite(pwm[0], CdutyCycle);
+      delay(50);
       digitalWrite(RL[0], HIGH);
       plugSA[1] = 1;
       break;
     case 7:
+      analogWrite(pwm[1], CdutyCycle);
+      delay(50);
       digitalWrite(RL[1], HIGH);
       plugSB[1] = 1;
       break;
     case 4:
+      analogWrite(pwm[2], CdutyCycle);
+      delay(50);
       digitalWrite(RL[2], HIGH);
       plugSC[1] = 1;
       break;
     case 5:
+      analogWrite(pwm[3], CdutyCycle);
+      delay(50);
       digitalWrite(RL[3], HIGH);
       plugSD[1] = 1;
       break;
     case -1:
       break;
+    default:
+      break;
     // Add cases for plug3 and plug4 if needed
   }
+  Serial.println("after switch case");
   welcomescreen();
 }
 
@@ -1050,10 +1174,7 @@ void plugStat(int plugNum, int time) {
   while (millis() - startTime < 10000) {
     
     // Check if button 4 is pressed then exit
-    if (checkButtonPress() == -1) {
-      break;
     
-    }
     
     // Print Plug Status
     tft.setTextSize(2);
@@ -1130,9 +1251,16 @@ void plugStat(int plugNum, int time) {
         tft.print("Priority: ");
         tft.print(currentPlugArray[2]);
 
-     }      
+     } 
+     delay(1000);     
+     if (checkButtonPress() == 4) {
+      break;
+    
+    }
    }
-   delay(100);
+   delay(1000);
+
+   
   
   return;
 }
